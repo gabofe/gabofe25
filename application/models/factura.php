@@ -90,7 +90,7 @@ Class factura extends CI_Model
                 $this->load->model('cliente','',TRUE);
                 $clienteArray = $this->cliente->getNombreCliente($cedula);
                 date_default_timezone_set("America/Costa_Rica");
-                $Current_datetime = date("y/m/d : H:i:s", now());
+                $Current_datetime = date(DB_DATETIME_FORMAT, now());
                 $dataFactura = array(
                         'Factura_Consecutivo'=>$consecutivo,
                         'Factura_Observaciones'=>$observaciones,
@@ -282,9 +282,6 @@ Class factura extends CI_Model
 
 	function getConfgArray()
 	{
-		/*$CI =& get_instance();
-		$CI->load->model('XMLParser');
-		return $CI->XMLParser->getConfigArray();*/
 		return $this->configuracion->getConfiguracionArray();
 	}
 
@@ -957,6 +954,10 @@ Class factura extends CI_Model
             // Eliminamos informacion antigua de la misma factura
             $this->db->where("Consecutivo", $factura->Factura_Consecutivo);
             $this->db->where("Sucursal", $factura->TB_02_Sucursal_Codigo);
+            $this->db->delete("tb_65_cuerpo_factura_electronica");
+
+            $this->db->where("Consecutivo", $factura->Factura_Consecutivo);
+            $this->db->where("Sucursal", $factura->TB_02_Sucursal_Codigo);
             $this->db->delete("tb_56_articulos_factura_electronica");
 
             $this->db->where("Consecutivo", $factura->Factura_Consecutivo);
@@ -1047,6 +1048,13 @@ Class factura extends CI_Model
             }
 
             $this->db->insert("tb_55_factura_electronica", $data);
+
+            $dataCuerpo = array(
+                "Consecutivo" => $factura->Factura_Consecutivo,
+                "Sucursal" => $factura->TB_02_Sucursal_Codigo,
+                "XMLSinFirmar" => ''
+            );
+            $this->db->insert("tb_65_cuerpo_factura_electronica", $dataCuerpo);
 
             foreach ($articulos as $art){
                 $data = array(
@@ -1194,11 +1202,13 @@ Class factura extends CI_Model
                                                     $factura->TotalOtrosCargos);
                     if($xmlRes){
                         $data = array(
+                            "Consecutivo" => $consecutivo,
+                            "Sucursal" => $sucursal,
                             "XMLSinFirmar" => $xmlRes["xml"]
                         );
                         $this->db->where("Consecutivo", $consecutivo);
                         $this->db->where("Sucursal", $sucursal);
-                        $this->db->update("tb_55_factura_electronica", $data);
+                        $this->db->update("tb_65_cuerpo_factura_electronica", $data);
                         return $data;
                     }
                 }
@@ -1212,28 +1222,38 @@ Class factura extends CI_Model
             $this->db->where("Sucursal", $sucursal);
             $query = $this->db->get();
             if($query->num_rows()>0){
-                if($api == NULL){
-                    require_once PATH_API_HACIENDA;
-                    $api = new API_FE();
-                }
-                $factura = $query->result()[0];
-                $this->db->from("tb_02_sucursal");
-                $this->db->where("Codigo", $sucursal);
-                $query = $this->db->get();
-                if($query->num_rows()>0){
-                    $empresa = $query->result()[0];
-                    if($xmlFirmado = $api->firmarDocumento($empresa->Token_Certificado_Tributa, $factura->XMLSinFirmar, $empresa->Pass_Certificado_Tributa, $factura->TipoDocumento)){
-                        $data = array(
-                            "XMLFirmado" => $xmlFirmado
-                        );
-                        $this->db->where("Consecutivo", $consecutivo);
-                        $this->db->where("Sucursal", $sucursal);
-                        $this->db->update("tb_55_factura_electronica", $data);
 
-                        // Guardarmos el XML firmado en un archivo
-                        $this->storeFile($factura->Clave.".xml", "fe", null, base64_decode($xmlFirmado, $factura->FechaEmision));
-
-                        return $data;
+                //Hay que traer el cuerpo
+                $this->db->from("tb_65_cuerpo_factura_electronica");
+                $this->db->where("Consecutivo", $consecutivo);
+                $this->db->where("Sucursal", $sucursal);
+                $queryCuerpo = $this->db->get();    
+                if($queryCuerpo->num_rows()>0){
+                    if($api == NULL){
+                        require_once PATH_API_HACIENDA;
+                        $api = new API_FE();
+                    }  
+                        
+                    $factura = $query->result()[0];
+                    $facturaCuerpo = $queryCuerpo->result()[0];
+                    $this->db->from("tb_02_sucursal");
+                    $this->db->where("Codigo", $sucursal);
+                    $query = $this->db->get();
+                    if($query->num_rows()>0){
+                        $empresa = $query->result()[0];
+                        if($xmlFirmado = $api->firmarDocumento($empresa->Token_Certificado_Tributa, $facturaCuerpo->XMLSinFirmar, $empresa->Pass_Certificado_Tributa, $factura->TipoDocumento)){
+                            $data = array(
+                                "XMLFirmado" => $xmlFirmado
+                            );
+                            $this->db->where("Consecutivo", $consecutivo);
+                            $this->db->where("Sucursal", $sucursal);
+                            $this->db->update("tb_65_cuerpo_factura_electronica", $data);
+    
+                            // Guardarmos el XML firmado en un archivo
+                            $this->storeFile($factura->Clave.".xml", "fe", null, base64_decode($xmlFirmado, $factura->FechaEmision));
+    
+                            return $data;
+                        }
                     }
                 }
             }
@@ -1250,45 +1270,57 @@ Class factura extends CI_Model
                     require_once PATH_API_HACIENDA;
                     $api = new API_FE();
                 }
-                $factura = $query->result()[0];
-                $this->db->from("tb_02_sucursal");
-                $this->db->where("Codigo", $sucursal);
-                $query = $this->db->get();
-                if($query->num_rows()>0){
-                    $empresa = $query->result()[0];
-                    if($tokenData = $api->solicitarToken($empresa->Ambiente_Tributa, $empresa->Usuario_Tributa, $empresa->Pass_Tributa)){
-                        if($resEnvio = $api->enviarDocumento($empresa->Ambiente_Tributa, $factura->Clave, $factura->FechaEmision, $factura->EmisorTipoIdentificacion, $factura->EmisorIdentificacion, $factura->ReceptorTipoIdentificacion, $factura->ReceptorIdentificacion, $tokenData["access_token"], $factura->XMLFirmado)){
-                            $data = array(
-                                "RespuestaHaciendaEstado" => "procesando",
-                                "FechaRecibidoPorHacienda" => date("y/m/d : H:i:s")
-                            );
-                            $this->db->where("Consecutivo", $consecutivo);
-                            $this->db->where("Sucursal", $sucursal);
-                            $this->db->update("tb_55_factura_electronica", $data);
 
-                            return true;
-                            //return $this->getEstadoFacturaHacienda($api, $empresa, $factura, $tokenData, $consecutivo, $sucursal);
+                //Hay que traer el cuerpo
+                $this->db->from("tb_65_cuerpo_factura_electronica");
+                $this->db->where("Consecutivo", $consecutivo);
+                $this->db->where("Sucursal", $sucursal);
+                $queryCuerpo = $this->db->get();    
+                if($queryCuerpo->num_rows()>0){
+
+                    $factura = $query->result()[0];
+                    $facturaCuerpo = $queryCuerpo->result()[0];
+                    $this->db->from("tb_02_sucursal");
+                    $this->db->where("Codigo", $sucursal);
+                    $query = $this->db->get();
+                    if($query->num_rows()>0){
+                        $empresa = $query->result()[0];
+                        if($tokenData = $api->solicitarToken($empresa->Ambiente_Tributa, $empresa->Usuario_Tributa, $empresa->Pass_Tributa)){
+                            if($resEnvio = $api->enviarDocumento($empresa->Ambiente_Tributa, $factura->Clave, $factura->FechaEmision, $factura->EmisorTipoIdentificacion, $factura->EmisorIdentificacion, $factura->ReceptorTipoIdentificacion, $factura->ReceptorIdentificacion, $tokenData["access_token"], $facturaCuerpo->XMLFirmado)){
+                                $data = array(
+                                    "RespuestaHaciendaEstado" => "procesando",
+                                    "FechaRecibidoPorHacienda" => date(DB_DATETIME_FORMAT)
+                                );
+                                $this->db->where("Consecutivo", $consecutivo);
+                                $this->db->where("Sucursal", $sucursal);
+                                $this->db->update("tb_55_factura_electronica", $data);
+
+                                return true;
+                                //return $this->getEstadoFacturaHacienda($api, $empresa, $factura, $tokenData, $consecutivo, $sucursal);
+                            }else{
+                                $data = array(
+                                    "RespuestaHaciendaEstado" => "fallo_envio"
+                                );
+                                $this->db->where("Consecutivo", $consecutivo);
+                                $this->db->where("Sucursal", $sucursal);
+                                $this->db->update("tb_55_factura_electronica", $data);
+                                log_message('error', "Error al enviar la factura a Hacienda | Consecutivo: $consecutivo | Sucursal: $sucursal");
+                            }
                         }else{
                             $data = array(
-                                "RespuestaHaciendaEstado" => "fallo_envio"
+                                "RespuestaHaciendaEstado" => "fallo_token"
                             );
                             $this->db->where("Consecutivo", $consecutivo);
                             $this->db->where("Sucursal", $sucursal);
                             $this->db->update("tb_55_factura_electronica", $data);
-                            log_message('error', "Error al enviar la factura a Hacienda | Consecutivo: $consecutivo | Sucursal: $sucursal");
+                            log_message('error', "Error al generar el token para envio de factura | Consecutivo: $consecutivo | Sucursal: $sucursal");
                         }
                     }else{
-                        $data = array(
-                            "RespuestaHaciendaEstado" => "fallo_token"
-                        );
-                        $this->db->where("Consecutivo", $consecutivo);
-                        $this->db->where("Sucursal", $sucursal);
-                        $this->db->update("tb_55_factura_electronica", $data);
-                        log_message('error', "Error al generar el token para envio de factura | Consecutivo: $consecutivo | Sucursal: $sucursal");
+                        log_message('error', "No existe empresa para su envio | Consecutivo: $consecutivo | Sucursal: $sucursal");
                     }
                 }else{
-                    log_message('error', "No existe empresa para su envio | Consecutivo: $consecutivo | Sucursal: $sucursal");
-                }
+                    log_message('error', "No existe cuerpo de factura para su envio | Consecutivo: $consecutivo | Sucursal: $sucursal");
+                }                
             }else{
                 log_message('error', "No existe factura para su envio | Consecutivo: $consecutivo | Sucursal: $sucursal");
             }
@@ -1300,7 +1332,9 @@ Class factura extends CI_Model
             $resCheck = array();
             $counter = 0;
             do {
-                sleep(2);
+                if($counter > 0){ //Solo esperar despues del primer intento
+                    sleep(2);
+                }                
                 $counter++;
                 $mensajeError = "";
                 $resCheck = $api->revisarEstadoAceptacion($empresa->Ambiente_Tributa, $factura->Clave, $tokenData["access_token"], $mensajeError);
@@ -1319,12 +1353,19 @@ Class factura extends CI_Model
                 $xmlRespuesta = isset($resCheck["data"]["respuesta-xml"]) ? trim($resCheck["data"]["respuesta-xml"]) : "NO XML FROM HACIENDA";
                 $data = array(
                     "RespuestaHaciendaEstado" => $estado,
-                    "RespuestaHaciendaFecha" => date("y/m/d : H:i:s"),
-                    "RespuestaHaciendaXML" => $xmlRespuesta
+                    "RespuestaHaciendaFecha" => date(DB_DATETIME_FORMAT)
                 );
                 $this->db->where("Consecutivo", $consecutivo);
                 $this->db->where("Sucursal", $sucursal);
                 $this->db->update("tb_55_factura_electronica", $data);
+
+                $data = array(
+                    "RespuestaHaciendaXML" => $xmlRespuesta
+                );
+                $this->db->where("Consecutivo", $consecutivo);
+                $this->db->where("Sucursal", $sucursal);
+                $this->db->update("tb_65_cuerpo_factura_electronica", $data);
+
                 log_message('error', "Se obtuvo el estado de hacienda <$estado> | Consecutivo: $consecutivo | Sucursal: $sucursal");
 
                 // Guardarmos el XML firmado en un archivo
@@ -2164,7 +2205,7 @@ Class factura extends CI_Model
                     if($resEnvio = $api->enviarDocumento($empresa->Ambiente_Tributa, $factura->Clave, $factura->FechaEmision, $factura->EmisorTipoIdentificacion, $factura->EmisorIdentificacion, $factura->ReceptorTipoIdentificacion, $factura->ReceptorIdentificacion, $tokenData["access_token"], $factura->XMLFirmado)){
                         $data = array(
                             "RespuestaHaciendaEstado" => "procesando",
-                            "FechaRecibidoPorHacienda" => date("y/m/d : H:i:s")
+                            "FechaRecibidoPorHacienda" => date(DB_DATETIME_FORMAT)
                         );
                         $this->db->where("Consecutivo", $consecutivo);
                         $this->db->where("Sucursal", $sucursal);
@@ -2214,7 +2255,7 @@ Class factura extends CI_Model
             $xmlRespuesta = isset($resCheck["data"]["respuesta-xml"]) ? trim($resCheck["data"]["respuesta-xml"]) : "NO XML FROM HACIENDA";
             $data = array(
                 "RespuestaHaciendaEstado" => $estado,
-                "RespuestaHaciendaFecha" => date("y/m/d : H:i:s"),
+                "RespuestaHaciendaFecha" => date(DB_DATETIME_FORMAT),
                 "RespuestaHaciendaXML" => $xmlRespuesta
             );
             $this->db->where("Consecutivo", $consecutivo);

@@ -96,7 +96,7 @@ Class contabilidad extends CI_Model
 				$sucursal = $this->sucursales_trueque[$sucursal];
 		}
 		date_default_timezone_set("America/Costa_Rica");
-		$Current_datetime = date("y/m/d : H:i:s", now());
+		$Current_datetime = date(DB_DATETIME_FORMAT, now());
 		$consecutivo = $this->getConsecutivoUltimoRecibo($sucursal)+1;
 		$datos = array(
 						'Consecutivo' => $consecutivo,
@@ -562,7 +562,7 @@ Class contabilidad extends CI_Model
 
 	function guardarDepositoRecibo($recibo, $credito, $deposito, $id_banco, $banco_nombre){
 		date_default_timezone_set("America/Costa_Rica");
-		$fecha = date("y/m/d : H:i:s", now());
+		$fecha = date(DB_DATETIME_FORMAT, now());
 		$datos = array(
 						'Banco_id' => $id_banco,
 						'Banco_Nombre' => $banco_nombre,
@@ -1354,7 +1354,9 @@ Class contabilidad extends CI_Model
 		}
 		else
 		{
-			return $query->result()[0]->abono;
+			$abono = $query->result()[0]->abono;
+
+			return $abono == null ? 0 : $abono;
 		}
 	}
 
@@ -1386,17 +1388,18 @@ Class contabilidad extends CI_Model
 		}
 	}
 
-	function getVendidoPorVendedor($vendedor, $sucursal, $inicio, $final){
+	function getVendidoPorVendedores($sucursal, $inicio, $final){
 		/*
-			SELECT 	SUM(tb_07_factura.Factura_Monto_Total) AS total_vendido,
-					CONCAT(tb_01_usuario.Usuario_Nombre, ' ', tb_01_usuario.Usuario_Apellidos) as usuario
+		SELECT 	SUM(tb_07_factura.Factura_Monto_Total) AS total_vendido, CONCAT(tb_01_usuario.Usuario_Nombre, ' ', tb_01_usuario.Usuario_Apellidos) as usuario
 			FROM tb_07_factura
 			JOIN tb_01_usuario ON tb_01_usuario.Usuario_Codigo = tb_07_factura.Factura_Vendedor_Codigo
-     JOIN tb_03_cliente ON tb_03_cliente.Cliente_Cedula = tb_07_factura.TB_03_Cliente_Cliente_Cedula
-			WHERE tb_07_factura.TB_02_Sucursal_Codigo = 0
+     		JOIN tb_03_cliente ON tb_03_cliente.Cliente_Cedula = tb_07_factura.TB_03_Cliente_Cliente_Cedula
+			WHERE tb_07_factura.TB_02_Sucursal_Codigo = 2
 			AND Factura_Estado = 'cobrada'
-			AND Factura_Vendedor_Codigo = 1
-            AND tb_03_cliente.Cliente_EsSucursal = 0;
+            AND tb_03_cliente.Cliente_EsSucursal = 0
+            AND tb_07_factura.Factura_Fecha_Hora < '2023-03-24T06:36:21.000'
+            AND tb_07_factura.Factura_Fecha_Hora > '2023-03-23T06:29:24.000'
+            GROUP BY usuario;
 		*/
 		$this->load->model("factura", "", true);
 		if($this->truequeHabilitado && isset($this->sucursales_trueque[$sucursal])){ //Si es trueque
@@ -1411,18 +1414,18 @@ Class contabilidad extends CI_Model
 						$this->db->where_not_in("tb_07_factura.Factura_Consecutivo", $facturas_trueque);
 				}
 		}
-		$this->db->select("SUM(tb_07_factura.Factura_Monto_Total) AS total_vendido,
-					CONCAT(tb_01_usuario.Usuario_Nombre, ' ', tb_01_usuario.Usuario_Apellidos) as usuario", false);
+		$this->db->select("SUM(tb_07_factura.Factura_Monto_Total) AS total_vendido, CONCAT(tb_01_usuario.Usuario_Nombre, ' ', tb_01_usuario.Usuario_Apellidos) as usuario", false);
 		$this->db->from('tb_07_factura');
 		$this->db->join('tb_01_usuario', 'tb_01_usuario.Usuario_Codigo = tb_07_factura.Factura_Vendedor_Codigo');
 		$this->db->join('tb_03_cliente', 'tb_03_cliente.Cliente_Cedula = tb_07_factura.TB_03_Cliente_Cliente_Cedula');
 		$this->db->where('tb_07_factura.TB_02_Sucursal_Codigo', $sucursal);
 		$this->db->where('tb_07_factura.Factura_Estado', 'cobrada');
-		$this->db->where('tb_07_factura.Factura_Vendedor_Codigo', $vendedor);
 		$this->db->where('tb_03_cliente.Cliente_EsSucursal', 0);
 		$this->db->where('tb_07_factura.Factura_Fecha_Hora >', $inicio);
 		$this->db->where('tb_07_factura.Factura_Fecha_Hora <', $final);
 		$this->db->where('tb_07_factura.TB_03_Cliente_Cliente_Cedula !=', 2);
+		$this->db->group_by('usuario');
+		$this->db->order_by('total_vendido', 'desc'); 
 		$query = $this->db->get();
 		if($query->num_rows()==0){
 			return false;
@@ -2605,7 +2608,7 @@ Class contabilidad extends CI_Model
                         if($resEnvio = $api->enviarDocumento($empresa->Ambiente_Tributa, $nota->Clave, $nota->FechaEmision, $nota->EmisorTipoIdentificacion, $nota->EmisorIdentificacion, $nota->ReceptorTipoIdentificacion, $nota->ReceptorIdentificacion, $tokenData["access_token"], $nota->XMLFirmado)){
                             $data = array(
                                 "RespuestaHaciendaEstado" => "procesando",
-                                "FechaRecibidoPorHacienda" => date("y/m/d : H:i:s")
+                                "FechaRecibidoPorHacienda" => date(DB_DATETIME_FORMAT)
                             );
                             $this->db->where("Consecutivo", $consecutivo);
                             $this->db->where("Sucursal", $sucursal);
@@ -2732,7 +2735,7 @@ Class contabilidad extends CI_Model
                                         //Obtenemos el consecutivo
                                         if($consecutivo = $this->getConsecutivo($sucursal)){
                                                 date_default_timezone_set("America/Costa_Rica");
-                                                $fecha = date("y/m/d : H:i:s", now());
+                                                $fecha = date(DB_DATETIME_FORMAT, now());
 
                                                 $tipoPago = 'contado'; //Por defetco guarda este
                                                 $moneda = 'colones'; //Por defecto guarda este
@@ -2999,7 +3002,7 @@ Class contabilidad extends CI_Model
                 $xmlRespuesta = isset($resCheck["data"]["respuesta-xml"]) ? trim($resCheck["data"]["respuesta-xml"]) : "NO XML FROM HACIENDA";
                 $data = array(
                     "RespuestaHaciendaEstado" => $estado,
-                    "RespuestaHaciendaFecha" => date("y/m/d : H:i:s"),
+                    "RespuestaHaciendaFecha" => date(DB_DATETIME_FORMAT),
                     "RespuestaHaciendaXML" => $xmlRespuesta
                 );
                 $this->db->where("Consecutivo", $consecutivo);
@@ -3187,7 +3190,7 @@ Class contabilidad extends CI_Model
                         if($resEnvio = $api->enviarDocumento($empresa->Ambiente_Tributa, $comprobante->Clave, $comprobante->FechaEmision, $comprobante->EmisorTipoIdentificacion, $comprobante->EmisorIdentificacion, $comprobante->ReceptorTipoIdentificacion, $comprobante->ReceptorIdentificacion, $tokenData["access_token"], $comprobante->XMLFirmado, $comprobante->ConsecutivoHacienda)){
                             $data = array(
                                 "RespuestaHaciendaEstado" => "procesando",
-                                "FechaRecibidoHacienda" => date("y/m/d : H:i:s")
+                                "FechaRecibidoHacienda" => date(DB_DATETIME_FORMAT)
                             );
                             $this->db->where("Consecutivo", $consecutivo);
                             $this->db->where("Sucursal", $sucursal);
@@ -3233,7 +3236,7 @@ Class contabilidad extends CI_Model
                 $xmlRespuesta = isset($resCheck["data"]["respuesta-xml"]) ? trim($resCheck["data"]["respuesta-xml"]) : "NO XML FROM HACIENDA";
                 $data = array(
                     "RespuestaHaciendaEstado" => $estado,
-                    "RespuestaHaciendaFecha" => date("y/m/d : H:i:s"),
+                    "RespuestaHaciendaFecha" => date(DB_DATETIME_FORMAT),
                     "RespuestaHaciendaXML" => $xmlRespuesta
                 );
                 $this->db->where("Consecutivo", $consecutivo);

@@ -1,0 +1,343 @@
+Agregar usuario como sudo:
+- su
+- sudo visudo 
+- sudo usermod -aG sudo <USUARIO>
+
+Instalar dependencias basicas:
+- sudo apt update
+- sudo apt install openssh-server net-tools git rsync htop iotop
+
+Instalar SSH Key Github
+- ssh-keygen -t ed25519 -C "<CORREO>"
+- eval "$(ssh-agent -s)"
+- ssh-add ~/.ssh/id_ed25519
+- nano ~/.ssh/id_ed25519.pub 
+
+Instalar MariaDB
+- sudo nano /etc/my.cnf
+[mysqld]
+bind-address = 0.0.0.0
+max_allowed_packet = 768M
+default_authentication_plugin = mysql_native_password
+lower_case_table_names = 1
+sql_mode=NO_ENGINE_SUBSTITUTION
+
+query_cache_type=ON
+query_cache_size=50MB
+
+
+[mysqldump]
+user=<USUARIO_RESPALDO>
+password=<PASSWORD>
+
+- sudo apt install mariadb-server
+- su
+- mysql -uroot
+- ALTER USER 'root'@'localhost' IDENTIFIED BY '<PASSWORD>';
+- CREATE USER 'gabo_admin'@'%' IDENTIFIED BY '<PASSWORD>';
+- GRANT ALL ON *.* TO 'gabo_admin'@'%'  WITH GRANT OPTION;
+- exit
+- exit
+- sudo nano /etc/mysql/mariadb.conf.d/50-server.cnf
+bind-address = 0.0.0.0
+
+Instalar PHP:
+- sudo apt install ca-certificates apt-transport-https
+- wget -q https://packages.sury.org/php/apt.gpg -O- | sudo apt-key add -
+- echo "deb https://packages.sury.org/php/ bookworm main" | sudo tee /etc/apt/sources.list.d/php.list
+- sudo apt update
+- sudo apt upgrade
+- sudo apt install php5.6 php5.6-fpm php8.2 php8.2-fpm apache2 libapache2-mod-fcgid
+- sudo a2enmod actions fcgid alias proxy_fcgi rewrite ssl
+- sudo systemctl reload apache2
+- sudo a2enconf php5.6-fpm php8.2-fpm
+- sudo systemctl reload apache2
+- sudo systemctl status php5.6-fpm
+- sudo systemctl status php8.2-fpm
+- sudo apt install php5.6-mysql php5.6-mcrypt php5.6-mbstring php5.6-curl php5.6-dom php5.6-zip
+- sudo systemctl reload apache2
+
+Cambiar tiempo de sesion
+- sudo nano /etc/php/5.6/fpm/php.ini
+- session.gc_maxlifetime = 1800
+- sudo systemctl reload apache2
+
+Agregar gabo
+- sudo nano /etc/apache2/sites-available/gabo.conf
+Listen 8181
+<VirtualHost *:8181>
+    ServerName gabo.com
+    DocumentRoot /var/www/gabos
+    <Directory /var/www/gabos>
+        Options -Indexes +FollowSymLinks +MultiViews
+        AllowOverride All
+        Require all granted
+    </Directory>
+    <FilesMatch \.php$>
+        # Apache 2.4.10+ can proxy to unix socket
+        SetHandler "proxy:unix:/var/run/php/php5.6-fpm.sock|fcgi://localhost/"
+    </FilesMatch>
+</VirtualHost>
+
+- sudo nano /etc/apache2/sites-available/firmador.conf
+Listen 88
+<VirtualHost *:88>
+    DocumentRoot /var/www/gabos/application/libraries/API_Hacienda/
+    <Directory /var/www/gabos/application/libraries/API_Hacienda/>
+        Options -Indexes +FollowSymLinks +MultiViews
+        AllowOverride All
+        Require all granted
+    </Directory>
+    <FilesMatch \.php$>
+        # Apache 2.4.10+ can proxy to unix socket
+        SetHandler "proxy:unix:/var/run/php/php8.2-fpm.sock|fcgi://localhost/"
+    </FilesMatch>
+</VirtualHost>
+
+
+- sudo mv /etc/apache2/sites-available/000-default.conf /etc/apache2/sites-available/000-default.conf.bk
+- sudo chown -R <USER>:www-data /var/www
+- cd /var/www
+- git clone git@github.com:davillafon12/gabos.git
+- sudo chown -R ambiente_admin:www-data /var/www/gabos
+- sudo chmod 775 -R /var/www/gabos/
+- sudo a2ensite gabo
+- sudo a2ensite firmador
+- sudo systemctl reload apache2
+- git config --global --add safe.directory /var/www/gabos
+- cd /var/www/gabos/
+- sudo ./createFolders.sh
+- sudo usermod -a -G www-data $USER
+
+
+Instalar Docker:
+- ACTUALIZAR .ENV
+- sudo apt install lsb-release gnupg2 apt-transport-https ca-certificates curl software-properties-common -y
+- curl -fsSL https://download.docker.com/linux/debian/gpg | sudo gpg --dearmor -o /etc/apt/trusted.gpg.d/debian.gpg
+- sudo add-apt-repository "deb [arch=$(dpkg --print-architecture)] https://download.docker.com/linux/debian $(lsb_release -cs) stable"
+- sudo apt update
+- sudo apt install docker-ce docker-ce-cli containerd.io docker-compose-plugin
+- sudo usermod -aG docker <USER>
+- newgrp docker
+- sudo systemctl start docker && sudo systemctl enable docker
+- sudo apt install docker-compose
+
+Crear Base de Datos y Usuarios: !!!!
+- docker-compose up php-my-admin
+
+Montar respaldo: !!!!
+- scp user@ip:file_path path_to_store
+- tar -xvzf file.tar.gz 
+- mysql -u [user name] –p [target_database_name] < [dumpfilename.sql]
+- actualizar datos de BD y correo en /var/www/gabos
+- actualizar certificados e imagenes
+
+Correr todo docker-compose:
+- docker-compose up airflow-init
+- docker-compose up -d
+- agregar variables de airflow
+- agregar conexiones de airflow
+- asegurarse que las carpetas de dropbox existan
+- hacer nuevo usaurio de airflow
+
+
+
+
+
+
+
+
+
+Permitir Acceso Remoto:
+- sudo systemctl stop  mysql
+- sudo nano /etc/mysql/mysql.conf.d/mysqld.cnf 
+bind-address = 0.0.0.0
+max_allowed_packet = 768M
+default_authentication_plugin = mysql_native_password
+lower_case_table_names = 1
+- sudo rm -rf /var/lib/mysql
+- sudo mkdir /var/lib/mysql    
+- sudo chown mysql:mysql /var/lib/mysql
+- sudo chmod 700 /var/lib/mysql
+- sudo mysql_install_db --defaults-file=/etc/my.cnf --lower_case_table_names=1 --user=mysql --console
+- sudo service mysql start
+- sudo grep 'temporary password' /var/log/mysql/error.log
+- sudo mysql -u root -p
+- ALTER USER 'root'@'localhost' IDENTIFIED BY 'y5tXn2KYJ1R%vTIB63HE';
+
+Crear usuario nuevo de BD
+- mysql -uroot -p
+- CREATE USER 'gabo_admin'@'%' IDENTIFIED BY 'Q2vu3CB1Am0LxrD0&H4v';
+- GRANT ALL ON *.* TO 'gabo_admin'@'%'  WITH GRANT OPTION;
+- SET GLOBAL sql_mode=(SELECT REPLACE(@@sql_mode,'ONLY_FULL_GROUP_BY',''))
+
+Instalar PHP5:
+- sudo apt install ca-certificates apt-transport-https
+- wget -q https://packages.sury.org/php/apt.gpg -O- | sudo apt-key add -
+- echo "deb https://packages.sury.org/php/ bookworm main" | sudo tee /etc/apt/sources.list.d/php.list
+- sudo apt update
+- sudo apt install php5.6 php5.6-fpm
+- sudo systemctl status php5.6-fpm
+- sudo apt install apache2 libapache2-mod-fcgid
+- sudo a2enmod actions fcgid alias proxy_fcgi
+- sudo systemctl reload apache2
+- sudo apt install php5.6-mysql
+- sudo apt install php5.6-mcrypt
+- sudo apt install php5.6-mbstring
+- sudo apt install php5.6-curl
+- sudo apt install php5.6-dom
+- sudo apt install php5.6-zip
+- sudo a2enmod rewrite
+- sudo a2enmod ssl
+
+Cambiar tiempo de sesion
+- sudo nano /etc/php/5.6/fpm/php.ini
+- session.gc_maxlifetime = 28800
+- sudo systemctl reload apache2
+
+Agregar gabo
+- sudo nano /etc/apache2/sites-available/gabo.conf
+<VirtualHost *:80>
+    ServerName gabo.com
+    DocumentRoot /var/www/gabos
+    <Directory /var/www/gabos>
+        Options -Indexes +FollowSymLinks +MultiViews
+        AllowOverride All
+        Require all granted
+    </Directory>
+    <FilesMatch \.php$>
+        # Apache 2.4.10+ can proxy to unix socket
+        SetHandler "proxy:unix:/var/run/php/php5.6-fpm.sock|fcgi://localhost/"
+    </FilesMatch>
+</VirtualHost>
+
+- cd /var/www
+- sudo chmod 777 -R /var/www
+- git clone git@github.com:davillafon12/gabos.git
+- sudo a2ensite gabo
+- sudo systemctl reload apache2
+- AGREGAR USUARIO DB POR EL WORKBENCH
+- sudo chown -R www-data:www-data /var/www/gabos
+- git config --global --add safe.directory /var/www/gabos
+
+Instalar Docker (ROOT):
+- sudo apt -y install apt-transport-https ca-certificates curl gnupg2 software-properties-common
+- curl -fsSL https://download.docker.com/linux/debian/gpg | gpg --dearmor -o /usr/share/keyrings/docker-archive-keyring.gpg
+- echo "deb [arch=amd64 signed-by=/usr/share/keyrings/docker-archive-keyring.gpg] https://download.docker.com/linux/debian $(lsb_release -cs) stable" | sudo tee /etc/apt/sources.list.d/docker.list
+- apt update
+- apt install docker-ce docker-ce-cli containerd.io
+
+
+Instalar PHPMyAdmin:
+- sudo docker run --name phpmyadmin -e PMA_HOST=192.168.1.77  -d --restart always -p 8081:80 phpmyadmin/phpmyadmin
+
+
+Creacion CA y certificado
+- mkdir openssl && cd openssl
+- openssl req -x509 \
+            -sha256 -days 356 \
+            -nodes \
+            -newkey rsa:2048 \
+            -subj "/CN=gabo.com/C=CR/L=SAN JOSE" \
+            -keyout rootCA.key -out rootCA.crt 
+- openssl genrsa -out server.key 2048
+- cat > csr.conf <<EOF
+[ req ]
+default_bits = 2048
+prompt = no
+default_md = sha256
+req_extensions = req_ext
+distinguished_name = dn
+
+[ dn ]
+C = CR
+ST = San Jose
+L = San Jose
+O = Garotas Bonitas
+OU = Garotas Bonitas
+CN = gabo.com
+
+[ req_ext ]
+subjectAltName = @alt_names
+
+[ alt_names ]
+DNS.1 = gabo.com
+DNS.2 = www.gabo.com
+IP.1 = 192.168.1.77
+
+EOF
+- openssl req -new -key server.key -out server.csr -config csr.conf
+- cat > cert.conf << EOF
+
+authorityKeyIdentifier=keyid,issuer
+basicConstraints=CA:FALSE
+keyUsage = digitalSignature, nonRepudiation, keyEncipherment, dataEncipherment
+subjectAltName = @alt_names
+
+[alt_names]
+DNS.1 = gabo.com
+
+EOF
+
+
+- openssl x509 -req \
+    -in server.csr \
+    -CA rootCA.crt -CAkey rootCA.key \
+    -CAcreateserial -out server.crt \
+    -days 365 \
+    -sha256 -extfile cert.conf
+
+
+
+Agregar SSL
+- <VirtualHost *:443>
+    ServerName gabo.com
+    DocumentRoot /var/www/gabos
+    <Directory /var/www/gabos>
+        Options -Indexes +FollowSymLinks +MultiViews
+        AllowOverride All
+        Require all granted
+    </Directory>
+    <FilesMatch \.php$>
+        # Apache 2.4.10+ can proxy to unix socket
+        SetHandler "proxy:unix:/var/run/php/php5.6-fpm.sock|fcgi://localhost/"
+    </FilesMatch>
+
+    SSLEngine on
+    SSLCertificateFile /home/dvillalobos/openssl/server.crt
+    SSLCertificateKeyFile /home/dvillalobos/openssl/server.key
+</VirtualHost>
+
+- sudo a2ensite gabo
+- sudo apache2ctl configtest
+- sudo systemctl reload apache2
+
+
+Instalar Apache Airflow
+- sudo apt install docker-compose
+- sudo curl -L "https://github.com/docker/compose/releases/download/v2.1.1/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
+- cd ~
+- mkdir airflow-local
+- cd airflow-local
+- curl -LfO 'https://airflow.apache.org/docs/apache-airflow/2.6.1/docker-compose.yaml'
+- mkdir ./dags ./logs ./plugins
+- echo -e "AIRFLOW_UID=$(id -u)\nAIRFLOW_GID=0" > .env
+- sudo docker-compose up airflow-init
+- sudo docker-compose up -d
+
+Crear usuario respaldo de BD
+- GRANT LOCK TABLES, SELECT ON DATABASE_NAME.* TO 'gabo_respaldo'@'%' IDENTIFIED BY 'PASSWORD';
+
+Acceso mysqldump
+- touch ~/.my.cnf
+- nano ~/.my.cnf
+[mysqldump]
+user=AGREGAR
+password=AGREGAR
+- chmod 600 ~/.my.cnf
+- sudo service mysql restart
+- mkdir ~/respaldos
+
+
+Instalar Dropbox
+- instalar usando el deb descargado de dropbox.com/downloading desde la VM

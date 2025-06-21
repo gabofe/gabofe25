@@ -43,13 +43,13 @@ Class proforma_m extends CI_Model
 		if($consecutivo = $this->getConsecutivo($sucursal)){
 			//return $consecutivo;
 			date_default_timezone_set("America/Costa_Rica");
-			$Current_datetime = date("y/m/d : H:i:s", now());
+			$Current_datetime = date(DB_DATETIME_FORMAT, now());
 			$this->load->model('cliente','',TRUE);
 			$clienteArray = $this->cliente->getNombreCliente($cedula);
 			$dataProforma = array(
 	                        'Proforma_Consecutivo'=>$consecutivo,
 	                        'Proforma_Observaciones'=>$observaciones,
-													'Proforma_Estado'=>'sin_procesar',
+													'Proforma_Estado'=>'sin_proces',
 													'Proforma_Moneda'=>$currency,
 													'Proforma_Porcentaje_IVA'=>$c_array['iva'],
 													'Proforma_Tipo_Cambio'=>$c_array['dolar_venta'],
@@ -177,9 +177,6 @@ Class proforma_m extends CI_Model
 
 	function getConfgArray()
 	{
-		/*$CI =& get_instance();
-		$CI->load->model('XMLParser');
-		return $CI->XMLParser->getConfigArray();*/
 		return $this->configuracion->getConfiguracionArray();
 	}
 

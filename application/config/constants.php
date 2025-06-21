@@ -36,39 +36,6 @@ define('FOPEN_READ_WRITE_CREATE',				'a+b');
 define('FOPEN_WRITE_CREATE_STRICT',				'xb');
 define('FOPEN_READ_WRITE_CREATE_STRICT',		'x+b');
 
-
-/**
- * ---------------------------   WINDOWS PATHS  ----------------------------------
- */
-
-//define('PATH_LOG_OUT_HEADER','/../Header/log_out_from_browser_Script.php');
-//define('PATH_HEADER_PICTURE','/../Header/Header_Picture.php');
-//define('PATH_HEADER_SELECTOR_MENU','/../Header/selector_menu.php');
-//define('PATH_HEADER_LOG_IN_INFO','/../Header/Log_In_Information.php');
-//define('PATH_FOOTER','/../Footer/Default_Footer.php');
-//define('PATH_USER_DATA','/../get_session_data.php');
-//define('PATH_USER_DATA_DOUBLE','/../controllers/get_session_data.php');
-//define('PATH_FPDF_LIBRARY', '/../libraries/fpdf/fpdf.php');
-//define('PATH_MENU_PRINCIPAL_VENDEDOR', '/../Header/Menu_Principal_Vendedor.php');
-//define('PATH_MENU_PRINCIPAL_CAJERO', '/../Header/Menu_Principal_Cajero.php');
-//define('PATH_MENU_PRINCIPAL','/../Header/Menu_Principal.php');
-//define('PATH_PERMISOS', '/../../controllers/usuarios/permisos.php');
-//define('PATH_DESACTIVAR_USUARIOS_SCRIPT', '/../../scripts/ajax_desactivar_usuarios.php');
-//define('PATH_DESACTIVAR_CLIENTES_SCRIPT', '/../../scripts/ajax_desactivar_clientes.php');
-//define('PATH_BUSCAR_CLIENTE_ID_SCRIPT', '/../../scripts/ajax_verify_cliente_id.php');
-//define('PATH_API_HACIENDA', '/../libraries/API_Hacienda/API_FE.php');
-//define('PATH_REST_CLIENT', '/../libraries/API_Hacienda/RestClient.php');
-//define('PATH_API_LOGGER', '/../libraries/API_Hacienda/APILogger.php');
-//define('PATH_API_HELPER', '/../libraries/API_Hacienda/API_Helper.php');
-//define('PATH_TABLA_FAMILIAS', '/../../scripts/cargar_tabla_familias.php');
-//define('PATH_AJAX_FAMILIAS', '/../../scripts/ajax_familias.php');
-//define('PATH_AJAX_VERIFY_FAMILIAS', '/../../scripts/ajax_verify_familia_id.php');
-//define('PATH_API_LOGGING', '/../../logs/API_FE');
-//define('PATH_UTILS_LOGGING', '/../../logs/UTILS');
-//define('PATH_DOCUMENTOS_ELECTRONICOS', '/../../third_party/');
-//define('PATH_API_CORREO', '/../libraries/Correo.php');
-//define('CARPETA_IMAGENES', FCPATH.'application\\images\\articulos\\');
-
 /**
  * ---------------------------    LINUX PATHS  ----------------------------------
  */
@@ -113,7 +80,7 @@ define('HACIENDA_DECIMALES', 5);
 define('API_CRLIBRE_CURL_TIMEOUT', 300);
 define('HACIENDA_TOKEN_API_STAG', "https://idp.comprobanteselectronicos.go.cr/auth/realms/rut-stag/protocol/openid-connect");
 define('HACIENDA_TOKEN_API_PROD', "https://idp.comprobanteselectronicos.go.cr/auth/realms/rut/protocol/openid-connect");
-define('HACIENDA_RECEPCION_API_STAG', "https://api.comprobanteselectronicos.go.cr/recepcion-sandbox/v1/");
+define('HACIENDA_RECEPCION_API_STAG', "https://api-sandbox.comprobanteselectronicos.go.cr/recepcion/v1/");
 define('HACIENDA_RECEPCION_API_PROD', "https://api.comprobanteselectronicos.go.cr/recepcion/v1/");
 define('PATH_DOCUMENTOS_ELECTRONICOS_WEB', 'application/third_party/');
 
@@ -129,6 +96,7 @@ define('ART_GEN_IMPUESTO', 13);
 define('CONTROL_DE_INVENTARIO', "CONTROL_DE_INVENTARIO");
 
 define('JAVASCRIPT_CACHE_VERSION', 45);
+define('DB_DATETIME_FORMAT', 'y-m-d H:i:s'); //y/m/d : H:i:s
 
 /* End of file constants.php */
 /* Location: ./application/config/constants.php */
